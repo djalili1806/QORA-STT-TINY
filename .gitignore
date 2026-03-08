@@ -1,0 +1,8 @@
+/target
+/.cargo/
+*.exe
+*.qora-stt
+*.py
+*.o
+*.pdb
+*.bat
